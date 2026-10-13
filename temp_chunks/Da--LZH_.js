@@ -1,0 +1,1 @@
+var e={email:`support@dribe.app`,host:`Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, USA`,updatedAt:`2026-08-11`};export{e as t};

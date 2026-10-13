@@ -1,0 +1,1 @@
+var e={TABLES:{USER_SETTINGS:`user_settings`,PURCHASES:`purchases`},BUCKETS:{LOFI:`lofi`},RPC:{AUTH_LINK_CREATE:`auth_link_create`,AUTH_LINK_CLAIM:`auth_link_claim`,AUTH_LINK_CONSUME:`auth_link_consume`,OWNED_PACK_IDS:`owned_pack_ids`}};export{e as t};

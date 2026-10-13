@@ -1,0 +1,1 @@
+import{At as e,G as t,I as n,Lt as r}from"./CKKu34V0.js";import{t as i}from"./Dviemejc.js";var a={class:`plain`},o=t({__name:`plain`,setup(t){return i(),(t,i)=>(e(),n(`div`,a,[r(t.$slots,`default`)]))}});export{o as default};
