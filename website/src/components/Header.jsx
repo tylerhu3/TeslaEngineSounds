@@ -6,7 +6,7 @@ export default function Header({
   theme,
   isMuted,
   onToggleMute,
-  unit,
+  unit = 'mph',
   onToggleUnit,
   isGpsActive,
   onToggleGps,

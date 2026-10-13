@@ -5,7 +5,7 @@ import { TRANSLATIONS } from '../data/translations';
 export default function HUD({
   state,
   scene,
-  unit,
+  unit = 'mph',
   onToggleUnit,
   onToggleManual,
   onShiftUp,

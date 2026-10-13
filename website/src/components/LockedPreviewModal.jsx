@@ -36,7 +36,7 @@ export default function LockedPreviewModal({
   onClose,
   initialScene,
   packId,
-  unit = 'km/h',
+  unit = 'mph',
   onSelectScene
 }) {
   // Allow scrolling through all 12 scenes sequentially with the arrows

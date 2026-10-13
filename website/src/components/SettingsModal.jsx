@@ -189,7 +189,7 @@ export default function SettingsModal({
   wheelSide = 'left',
   onChangeWheelSide,
   // Speed Unit
-  unit = 'km/h',
+  unit = 'mph',
   onSetUnit,
   // Cockpit & Tesla Additions
   tremorAmount = 0.5,

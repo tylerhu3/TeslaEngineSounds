@@ -10,6 +10,7 @@ import LockedPreviewModal from './components/LockedPreviewModal';
 import { SCENES } from './data/scenes';
 import { VehiclePhysics } from './engine/physicsEngine';
 import { engineAudio } from './engine/audioEngine';
+import { enableBackgroundAudioKeepAlive, createBackgroundTicker } from './engine/backgroundAudio';
 
 export default function App() {
   // 1. Scene & Vehicle State
@@ -76,9 +77,9 @@ export default function App() {
   // 4. Units & Display Preferences
   const [unit, setUnit] = useState(() => {
     try {
-      return localStorage.getItem('plaid-mode:unit') || 'km/h';
+      return localStorage.getItem('plaid-mode:unit') || 'mph';
     } catch {
-      return 'km/h';
+      return 'mph';
     }
   });
 
@@ -221,9 +222,10 @@ export default function App() {
     }
   }, [isBackgroundAudio, physicsState.isManual]);
 
-  // 2. If background audio is OFF, pause sounds when window blurs / is hidden
+  // 2. Resume AudioContext and keep background playback alive on visibility changes
   useEffect(() => {
     const handleVisibility = () => {
+      engineAudio.resume();
       if (!isBackgroundAudio) {
         if (document.hidden) {
           engineAudio.setMuted(true);
@@ -234,7 +236,13 @@ export default function App() {
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('blur', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('blur', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
   }, [isBackgroundAudio, isMuted]);
 
   // Volume Handlers
@@ -311,6 +319,7 @@ export default function App() {
 
     const unlockAudio = () => {
       engineAudio.resume();
+      enableBackgroundAudioKeepAlive();
       if (!engineAudio.isPlaying) {
         engineAudio.start();
       }
@@ -328,16 +337,18 @@ export default function App() {
     };
   }, [currentScene.voiceId, effectsVolume]);
 
-  // 60FPS Physics & Audio Loop
+  // 60FPS Physics & Audio Loop with unthrottled background ticker
   useEffect(() => {
     let animId;
     let lastTime = performance.now();
 
-    const loop = (time) => {
-      const dt = (time - lastTime) / 1000;
-      lastTime = time;
+    const tickFrame = () => {
+      const now = performance.now();
+      const dt = Math.min(0.1, Math.max(0.001, (now - lastTime) / 1000));
+      lastTime = now;
 
       const p = physicsRef.current;
+      if (!p) return;
       const state = p.tick(dt);
 
       // Feed engine audio parameters if preview modal is not active
@@ -355,11 +366,35 @@ export default function App() {
       }
 
       setPhysicsState(state);
+    };
+
+    const loop = () => {
+      tickFrame();
       animId = requestAnimationFrame(loop);
     };
 
     animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
+
+    // Background Web Worker ticker: keeps physics and engine audio ticking when
+    // requestAnimationFrame is paused by the browser (hidden tab, locked screen, in-car navigation)
+    const bgTicker = createBackgroundTicker(() => {
+      if (document.hidden) {
+        tickFrame();
+      }
+    });
+
+    const handleVisibility = () => {
+      lastTime = performance.now();
+      engineAudio.resume();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      bgTicker.dispose();
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   // Pack Unlock Handler
