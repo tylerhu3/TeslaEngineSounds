@@ -95,18 +95,7 @@ export default function Header({
         )}
       </div>
 
-      {/* 2. Brand Logo */}
-      <div className="siteHeader__brand">
-        <div className="dribeLogoLockup" title="Dribe • Automotive Soundscapes">
-          <svg className="dribeLogoIcon" viewBox="0 0 100 80" fill="currentColor">
-            <path
-              d="M12 10 H60 C75 10 84 20 84 32 C84 42 78 48 68 50 C80 52 88 60 88 72 C88 84 76 92 60 92 H12 L28 72 H58 C66 72 72 68 72 62 C72 56 66 52 56 52 H26 L40 34 H58 C66 34 70 30 70 24 C70 18 64 16 56 16 H24 Z"
-              transform="scale(0.8) translate(0, -6)"
-            />
-          </svg>
-          <span className="dribeLogoText">DRIBE</span>
-        </div>
-      </div>
+
     </header>
   );
 }
