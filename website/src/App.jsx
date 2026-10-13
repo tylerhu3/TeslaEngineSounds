@@ -337,6 +337,18 @@ export default function App() {
     };
   }, [currentScene.voiceId, effectsVolume]);
 
+  // Random Thunder in Chill (Lo-fi) screen: plays randomly between 1 and 10 minutes
+  useEffect(() => {
+    if (currentScene.id === 'chill' || currentScene.scene === 'rain') {
+      engineAudio.startThunderScheduler();
+      return () => {
+        engineAudio.stopThunderScheduler();
+      };
+    } else {
+      engineAudio.stopThunderScheduler();
+    }
+  }, [currentScene.id, currentScene.scene]);
+
   // 60FPS Physics & Audio Loop with unthrottled background ticker
   useEffect(() => {
     let animId;

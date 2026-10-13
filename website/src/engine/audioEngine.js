@@ -1222,6 +1222,11 @@ class EngineAudioController {
     this.rainSynth = null;
     this.rainActive = false;
     this.ambientGain = 0.7;
+
+    // Thunder effect for Chill screen
+    this.thunderTimer = null;
+    this.activeThunderAudio = null;
+    this.isThunderActive = false;
   }
 
   async setPreset(voiceId) {
@@ -1276,6 +1281,9 @@ class EngineAudioController {
     if (this.rainSynth) {
       this.rainSynth.setMuted(muted);
     }
+    if (this.activeThunderAudio) {
+      this.activeThunderAudio.muted = muted;
+    }
   }
 
   setMasterVolume(val) {
@@ -1290,6 +1298,9 @@ class EngineAudioController {
     this.ambientGain = clamp(val, 0, 1);
     if (this.rainSynth) {
       this.rainSynth.setVolume(this.ambientGain);
+    }
+    if (this.activeThunderAudio) {
+      this.activeThunderAudio.volume = clamp(this.ambientGain * 0.9, 0, 1);
     }
   }
 
@@ -1346,6 +1357,72 @@ class EngineAudioController {
       this.rainSynth.stop();
     }
   }
+
+  startThunderScheduler() {
+    this.isThunderActive = true;
+    if (this.thunderTimer) {
+      clearTimeout(this.thunderTimer);
+      this.thunderTimer = null;
+    }
+    this.scheduleNextThunder();
+  }
+
+  stopThunderScheduler() {
+    this.isThunderActive = false;
+    if (this.thunderTimer) {
+      clearTimeout(this.thunderTimer);
+      this.thunderTimer = null;
+    }
+    if (this.activeThunderAudio) {
+      try {
+        this.activeThunderAudio.pause();
+        this.activeThunderAudio.currentTime = 0;
+      } catch {}
+      this.activeThunderAudio = null;
+    }
+  }
+
+  scheduleNextThunder() {
+    if (!this.isThunderActive) return;
+    // Random interval between 1 minute (60,000 ms) and 10 minutes (600,000 ms)
+    const minMs = 60 * 1000;
+    const maxMs = 600 * 1000;
+    const delay = Math.floor(minMs + Math.random() * (maxMs - minMs));
+
+    this.thunderTimer = setTimeout(() => {
+      if (this.isThunderActive) {
+        this.playThunder();
+        this.scheduleNextThunder();
+      }
+    }, delay);
+  }
+
+  playThunder() {
+    if (this.isMuted) return;
+    try {
+      if (this.activeThunderAudio) {
+        try {
+          this.activeThunderAudio.pause();
+        } catch {}
+      }
+      const audio = new Audio('/audio/halloween/thunder.mp3');
+      audio.volume = clamp(this.ambientGain * 0.9, 0, 1);
+      audio.muted = this.isMuted;
+      audio.play().catch((e) => console.debug('Thunder audio play notice:', e));
+      this.activeThunderAudio = audio;
+      audio.onended = () => {
+        if (this.activeThunderAudio === audio) {
+          this.activeThunderAudio = null;
+        }
+      };
+    } catch (e) {
+      console.debug('Thunder audio error:', e);
+    }
+  }
 }
 
 export const engineAudio = new EngineAudioController();
+
+if (typeof window !== 'undefined') {
+  window.__playThunder = () => engineAudio.playThunder();
+}
