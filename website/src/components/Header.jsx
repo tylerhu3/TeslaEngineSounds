@@ -9,6 +9,7 @@ export default function Header({
   unit,
   onToggleUnit,
   isGpsActive,
+  onToggleGps,
   scene,
   isLofiPlayerOpen,
   onToggleLofiPlayer,
@@ -70,9 +71,25 @@ export default function Header({
           </button>
         )}
 
-        {/* GPS Indicator */}
+        {/* GPS Speedometer Button & Status */}
+        <button
+          type="button"
+          className={`headerBtn ${isGpsActive ? 'headerBtn--active' : ''}`}
+          onClick={onToggleGps}
+          title={isGpsActive ? `${t.gps} Active (Click to switch to manual simulation)` : `Enable ${t.gps}`}
+          aria-label={t.gps}
+        >
+          <Compass size={18} className={isGpsActive ? 'spinIcon' : ''} />
+        </button>
+
+        {/* GPS Active Badge */}
         {isGpsActive && (
-          <span className="headerBadge headerBadge--gps" title={t.gps}>
+          <span
+            className="headerBadge headerBadge--gps"
+            title={t.gps}
+            onClick={onToggleGps}
+            style={{ cursor: 'pointer' }}
+          >
             <Compass size={13} className="spinIcon" /> GPS
           </span>
         )}

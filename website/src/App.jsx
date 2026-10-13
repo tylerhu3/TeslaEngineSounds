@@ -152,10 +152,66 @@ export default function App() {
     } catch {}
   }, [isBackgroundAudio]);
 
+  // Production environment check: Netlify, production domains, or non-localhost
+  const isProduction =
+    import.meta.env.PROD ||
+    (typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1');
+
+  // In production, always default to GPS speed measurement as driver effects & speed
+  const [isGpsActive, setIsGpsActive] = useState(() => {
+    try {
+      const saved = localStorage.getItem('plaid-mode:gpsActive');
+      if (saved !== null) return saved === 'true';
+      return isProduction;
+    } catch {
+      return isProduction;
+    }
+  });
+
+  // In production, simulation throttle pedal is off by default (vehicle motion drives it)
+  const [isSimulated, setIsSimulated] = useState(() => {
+    try {
+      const saved = localStorage.getItem('plaid-mode:isSimulated');
+      if (saved !== null) return saved === 'true';
+      return !isProduction;
+    } catch {
+      return !isProduction;
+    }
+  });
+
   const [isMuted, setIsMuted] = useState(false);
-  const [isSimulated, setIsSimulated] = useState(true);
-  const [isGpsActive, setIsGpsActive] = useState(false);
   const [tremorAmount, setTremorAmount] = useState(0.5);
+
+  // GPS Tracking Lifecycle & Persistent State
+  useEffect(() => {
+    if (isGpsActive) {
+      physicsRef.current.startGpsTracking(
+        () => setIsGpsActive(true),
+        (err) => {
+          console.warn('GPS location tracking error or permission denied:', err);
+          // If permission is explicitly denied, keep app usable via simulation
+          if (err && err.code === 1) {
+            setIsGpsActive(false);
+            setIsSimulated(true);
+          }
+        }
+      );
+    } else {
+      physicsRef.current.stopGpsTracking();
+    }
+
+    try {
+      localStorage.setItem('plaid-mode:gpsActive', isGpsActive.toString());
+    } catch {}
+  }, [isGpsActive]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('plaid-mode:isSimulated', isSimulated.toString());
+    } catch {}
+  }, [isSimulated]);
 
   // Background Audio Behavior:
   // 1. If background audio is OFF, lock manual mode and force Auto
@@ -379,12 +435,18 @@ export default function App() {
     setIsGpsActive((prev) => {
       const next = !prev;
       if (next) {
-        physicsRef.current.startGpsTracking(
-          () => setIsGpsActive(true),
-          () => setIsGpsActive(false)
-        );
-      } else {
-        physicsRef.current.stopGpsTracking();
+        setIsSimulated(false);
+      }
+      return next;
+    });
+  }, []);
+
+  // Simulation Throttle Toggle
+  const handleToggleSimulated = useCallback(() => {
+    setIsSimulated((prev) => {
+      const next = !prev;
+      if (next) {
+        setIsGpsActive(false);
       }
       return next;
     });
@@ -437,6 +499,7 @@ export default function App() {
         unit={unit}
         onToggleUnit={handleToggleUnit}
         isGpsActive={isGpsActive}
+        onToggleGps={handleToggleGps}
         scene={currentScene}
         isLofiPlayerOpen={isLofiPlayerOpen}
         onToggleLofiPlayer={() => setIsLofiPlayerOpen((prev) => !prev)}
@@ -529,7 +592,7 @@ export default function App() {
         currentScene={currentScene}
         onSelectScene={handleSelectScene}
         isSimulated={isSimulated}
-        onToggleSimulated={() => setIsSimulated((prev) => !prev)}
+        onToggleSimulated={handleToggleSimulated}
         unlockedPacks={unlockedPacks}
         onOpenPreview={handleOpenPreview}
         wheelSide={wheelSide}

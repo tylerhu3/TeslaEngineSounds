@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm --prefix website run dev",
-    "build": "npm --prefix website run build",
+    "build": "npm --prefix website run build && rm -rf dist && cp -r website/dist dist",
     "preview": "npm --prefix website run preview"
   }
 }

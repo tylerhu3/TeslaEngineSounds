@@ -86,12 +86,43 @@ export class VehiclePhysics {
       return;
     }
     this.isGpsActive = true;
+    this.lastGpsCoords = null;
+    this.lastGpsTimestamp = null;
+
     this.gpsWatchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const speedMs = pos.coords.speed;
-        if (speedMs !== null && !isNaN(speedMs) && speedMs >= 0) {
-          this.gpsSpeedKmh = speedMs * 3.6;
+        let speedKmh = null;
+
+        // 1. Hardware/Doppler speed reported by device (in m/s)
+        if (pos.coords.speed !== null && !isNaN(pos.coords.speed) && pos.coords.speed >= 0) {
+          speedKmh = pos.coords.speed * 3.6;
         }
+        // 2. Fallback: Haversine distance over elapsed time when coords.speed is null (e.g. mobile Safari)
+        else if (this.lastGpsCoords && this.lastGpsTimestamp) {
+          const dtSec = (pos.timestamp - this.lastGpsTimestamp) / 1000;
+          if (dtSec > 0.35 && dtSec < 15) {
+            const distMeters = this.calcHaversineDistance(
+              this.lastGpsCoords.latitude,
+              this.lastGpsCoords.longitude,
+              pos.coords.latitude,
+              pos.coords.longitude
+            );
+            const calcSpeedMs = distMeters / dtSec;
+            speedKmh = calcSpeedMs > 0.5 ? calcSpeedMs * 3.6 : 0;
+          }
+        }
+
+        if (speedKmh !== null) {
+          // Stationary filter: ignore < 1.2 km/h GPS drift while parked
+          this.gpsSpeedKmh = speedKmh < 1.2 ? 0 : Math.min(speedKmh, this.topSpeedKmh || 340);
+        }
+
+        this.lastGpsCoords = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        };
+        this.lastGpsTimestamp = pos.timestamp;
+
         if (onSuccess) onSuccess(pos);
       },
       (err) => {
@@ -100,9 +131,23 @@ export class VehiclePhysics {
       {
         enableHighAccuracy: true,
         maximumAge: 1000,
-        timeout: 5000
+        timeout: 10000
       }
     );
+  }
+
+  calcHaversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000; // Earth radius in meters
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   }
 
   stopGpsTracking() {
@@ -111,6 +156,8 @@ export class VehiclePhysics {
       this.gpsWatchId = null;
     }
     this.isGpsActive = false;
+    this.lastGpsCoords = null;
+    this.lastGpsTimestamp = null;
   }
 
   tick(dt = 0.016) {
@@ -137,12 +184,25 @@ export class VehiclePhysics {
       }
     }
 
-    // GPS mode handling
+    // GPS mode handling: driving real vehicle speed & acceleration
     if (this.isGpsActive) {
       const prevSpeed = this.speedKmh;
-      this.speedKmh += (this.gpsSpeedKmh - this.speedKmh) * Math.min(1, dt * 5);
+      // Exponential smoothing filter for GPS speed
+      this.speedKmh += (this.gpsSpeedKmh - this.speedKmh) * Math.min(1, dt * 6.5);
+      if (Math.abs(this.speedKmh - this.gpsSpeedKmh) < 0.2) {
+        this.speedKmh = this.gpsSpeedKmh;
+      }
+      this.speedMph = this.speedKmh * 0.621371;
+
+      // Acceleration in m/s^2
       this.accelerationMs2 = ((this.speedKmh - prevSpeed) / 3.6) / Math.max(0.001, dt);
-      
+
+      // In GPS mode, driver throttle effort is derived from vehicle acceleration:
+      // Positive acceleration (e.g. 0 to 2.4 m/s^2) translates to dynamic throttle load (0.0 to 1.0)
+      const accelThrottle = Math.max(0, Math.min(1, this.accelerationMs2 / 2.2));
+      const cruiseFloor = this.speedKmh > 5 ? 0.12 : 0;
+      this.throttle = Math.max(cruiseFloor, accelThrottle);
+
       const firstGearRatio = this.gearRatios[0] || 2.74;
       const firstGearTopSpeedKmh = 62;
       const rpmPerKmhFactor = (this.redlineRpm - this.idleRpm) / (firstGearTopSpeedKmh * (firstGearRatio * this.finalDrive));
