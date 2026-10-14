@@ -385,7 +385,7 @@ export default function App() {
     };
   }, [currentScene.voiceId, effectsVolume, rainActive, isBackgroundAudio, isMuted]);
 
-  // MediaSession Presentation sync (matching dribe.app)
+  // MediaSession Presentation sync
   useEffect(() => {
     updateMediaSession(currentScene, {
       isRunning: engineAudio.isPlaying && !isMuted,
@@ -753,7 +753,7 @@ export default function App() {
         onSelectScene={handleSelectScene}
       />
 
-      {/* 8. Settings Modal (Full Dribe Parity) */}
+      {/* 8. Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

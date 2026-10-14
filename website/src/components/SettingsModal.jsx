@@ -2,7 +2,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { X, Sun, Moon, AlertTriangle, Compass, ShieldCheck } from 'lucide-react';
 import { LOCALES, TRANSLATIONS } from '../data/translations';
 
-// 1. Sleek Dribe Drag/Click Slider Bar
+// 1. Sleek Drag/Click Slider Bar
 function TheSettingsSlider({ label, value, onChange, disabled = false }) {
   const barRef = useRef(null);
   const [isSliding, setIsSliding] = useState(false);
@@ -86,7 +86,7 @@ function TheSettingsSlider({ label, value, onChange, disabled = false }) {
   );
 }
 
-// 2. Dribe Pill Switch Toggle
+// 2. Pill Switch Toggle
 function TheSettingsSwitch({ label, isOn, onChange }) {
   return (
     <label className="settingsSwitch">
@@ -104,7 +104,7 @@ function TheSettingsSwitch({ label, isOn, onChange }) {
   );
 }
 
-// 3. Dribe Multi-slot Segmented Pill Toggle
+// 3. Multi-slot Segmented Pill Toggle
 function TheSettingsToggle({ options, value, onSelect }) {
   const activeIndex = Math.max(0, options.findIndex((opt) => opt.value === value));
   const slotsCount = options.length;
@@ -413,9 +413,8 @@ export default function SettingsModal({
 
         {/* Footer Legal Link */}
         <a
-          href="https://dribe.app/terms"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="#terms"
+          onClick={(e) => e.preventDefault()}
           className="settings__legal"
         >
           {t.terms}

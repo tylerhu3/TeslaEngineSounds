@@ -1,4 +1,4 @@
-// DRIBE Motion-Reactive Rain Physics Engine
+// Motion-Reactive Rain Physics Engine
 // Realistic automotive rain: continuous downward rainfall with speed-proportional
 // lateral perspective sweep. Zero sci-fi starburst or central convergence.
 

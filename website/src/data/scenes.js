@@ -1,4 +1,4 @@
-// All 12 Dribe Soundscapes & Virtual Engine Scenes
+// All 12 Soundscapes & Virtual Engine Scenes
 export const SCENES = [
   {
     id: "road-66",

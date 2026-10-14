@@ -1,5 +1,5 @@
-// Authentic Dribe Background Audio Keep-Alive & MediaSession Engine
-// Matches dribe.app presentation:
+// Authentic Background Audio Keep-Alive & MediaSession Engine
+// Features:
 // 1. Looping silent HTML5 audio element (/audio/silence/silence-600.mp3) appended to DOM with volume=1
 //    to maintain active mobile OS audio session in iOS Safari, Android Chrome, and Tesla Browser.
 // 2. Full MediaSession API integration with dynamic accent-tinted artwork, real car metadata,
@@ -16,7 +16,7 @@ const artworkCache = new Map();
 
 /**
  * Generate a dynamic 256x256 branded artwork icon tinted to scene accent color.
- * Matches Dribe's dynamic canvas tile generator (Xa) with dark background and speed dial styling.
+ * Uses dynamic canvas tile generator with dark background and speed dial styling.
  */
 export function generateArtworkIcon(accentColor = '#f7b733') {
   if (typeof document === 'undefined') return '';
@@ -100,7 +100,7 @@ export function getOrCreateKeepAliveElement() {
     return keepAliveAudioEl;
   }
 
-  let existing = document.getElementById('dribe-keep-alive-audio');
+  let existing = document.getElementById('tesla-keep-alive-audio');
   if (existing) {
     keepAliveAudioEl = existing;
     return keepAliveAudioEl;
@@ -108,7 +108,7 @@ export function getOrCreateKeepAliveElement() {
 
   try {
     const audio = document.createElement('audio');
-    audio.id = 'dribe-keep-alive-audio';
+    audio.id = 'tesla-keep-alive-audio';
     audio.loop = true;
     audio.volume = 1.0; // Real silence MP3 has zero dB PCM; volume=1 ensures OS grants background power exemption
     audio.preload = 'auto';
@@ -181,7 +181,7 @@ export function enableBackgroundAudioKeepAlive() {
 }
 
 /**
- * Update the MediaSession API metadata and playback state, matching dribe.app
+ * Update the MediaSession API metadata and playback state
  */
 export function updateMediaSession(scene, {
   isRunning = true,
@@ -212,8 +212,8 @@ export function updateMediaSession(scene, {
       : (scene?.name || 'Road 66');
 
     const artist = isLofiPlaying && lofiTrack?.artist
-      ? `Dribe · ${scene?.name || 'Lo-fi'}`
-      : `Dribe · ${scene?.name || 'Tesla Engine Sounds'}`;
+      ? `Tesla Sounds · ${scene?.name || 'Lo-fi'}`
+      : `Tesla Sounds · ${scene?.name || 'Virtual Cockpit'}`;
 
     const album = isLofiPlaying && lofiTrack?.artist
       ? lofiTrack.artist

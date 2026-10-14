@@ -1,4 +1,4 @@
-# Netlify Configuration for Tesla Engine Sounds (Dribe)
+# Netlify Configuration for Tesla Engine Sounds
 
 [build]
   base = "website"

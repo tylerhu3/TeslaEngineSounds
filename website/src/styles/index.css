@@ -1,5 +1,5 @@
 /* ==========================================================================
-   DRIBE — Automotive Virtual Cockpit & Engine Sounds Design System
+   Automotive Virtual Cockpit & Engine Sounds Design System
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Arvo:ital,wght@0,700;1,700&family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&family=Josefin+Sans:wght@600;700&family=Michroma&family=Orbitron:wght@600;700;800&family=Overpass:wght@600;700;800&family=Titillium+Web:ital,wght@0,400;0,600;0,700;1,700&family=Zen+Maru+Gothic:wght@500;700&display=swap');
@@ -132,21 +132,21 @@ html, body {
   gap: 10px;
 }
 
-.dribeLogoLockup {
+.brandLogoLockup {
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
 }
 
-.dribeLogoIcon {
+.brandLogoIcon {
   width: 22px;
   height: 22px;
   color: #ffffff;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.7));
 }
 
-.dribeLogoText {
+.brandLogoText {
   font-family: var(--font-ui);
   font-size: 19px;
   font-weight: 800;
@@ -155,8 +155,8 @@ html, body {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
 }
 
-:root[data-theme="light"] .dribeLogoIcon,
-:root[data-theme="light"] .dribeLogoText {
+:root[data-theme="light"] .brandLogoIcon,
+:root[data-theme="light"] .brandLogoText {
   color: #ffffff; /* Header is always over dark cockpit */
 }
 
@@ -1110,7 +1110,7 @@ html, body {
    SETTINGS MODAL
    ========================================================================== */
 /* ==========================================================================
-   DRIBE SETTINGS MODAL & PREFERENCES
+   SETTINGS MODAL & PREFERENCES
    ========================================================================== */
 .settings {
   z-index: 50;
@@ -1304,7 +1304,7 @@ html, body {
   background: var(--chalk-000);
 }
 
-/* Authentic Dribe Slider Bar */
+/* Slider Bar */
 .settingsSlider {
   transition: opacity 0.2s var(--ease-out);
   flex-direction: column;
@@ -1370,7 +1370,7 @@ html, body {
   cursor: default;
 }
 
-/* Authentic Dribe Switch Toggle */
+/* Switch Toggle */
 .settingsSwitch {
   justify-content: space-between;
   align-items: center;
@@ -1470,7 +1470,7 @@ html, body {
   margin-top: 2px;
 }
 
-/* Authentic Dribe Segmented Pill Toggle */
+/* Segmented Pill Toggle */
 .settingsToggle {
   --switch-pad: 3px;
   --switch-gap: 2px;
@@ -1787,7 +1787,7 @@ html, body {
 }
 
 /* ==========================================================================
-   LOCKED PREVIEW MODAL (Dribe Authentic Layout)
+   LOCKED PREVIEW MODAL
    ========================================================================== */
 .lockedPreviewModal {
   position: fixed;

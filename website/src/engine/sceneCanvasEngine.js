@@ -1,5 +1,5 @@
 // ==========================================================================
-// DRIBE Procedural Canvas Visual Effects Engine
+// Procedural Canvas Visual Effects Engine
 // Complete procedural 2D canvas shaders & algorithms for all 12 scenes:
 // Route 66, Warp, Neon Drive, Plaid, Desert, Snow, Space, Japan,
 // Italia, Miami, Autobahn, Rain, Route 66 Halloween

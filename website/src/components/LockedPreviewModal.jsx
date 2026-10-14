@@ -4,7 +4,7 @@ import CanvasStage from './CanvasStage';
 import { SCENES, PACKS } from '../data/scenes';
 import { engineAudio } from '../engine/audioEngine';
 
-// Dribe exact preview speed cycle curve (13.0s loop)
+// Authentic preview speed cycle curve (13.0s loop)
 const PREVIEW_SPEED_STEPS = [
   { to: 60, seconds: 5.2, shape: 0.62 },
   { to: 90, seconds: 1.2, shape: 0.85 },
@@ -158,7 +158,7 @@ export default function LockedPreviewModal({
         throttleVal = currentAccel > 0 ? Math.min(1, currentAccel / 2.5) : 0;
       }
 
-      // Update Audio Engine with authentic Dribe physics
+      // Update Audio Engine with authentic vehicle physics
       engineAudio.update({
         speedKmh: targetSpeed,
         acceleration: effortRef.current,

@@ -1,5 +1,4 @@
-// DRIBE Official Internationalization Dictionary (EN, FR, ES)
-// Extracted and aligned directly from dribe.app
+// Internationalization Dictionary (EN, FR, ES)
 
 export const LOCALES = [
   { code: 'en', label: 'English' },

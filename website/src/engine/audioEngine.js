@@ -1,10 +1,10 @@
-// Authentic Dribe Audio Engine
+// Authentic Virtual Cockpit Audio Engine
 // Supporting both real sampled ProCar engines (458, Miami, Autobahn, ProCar, Bac-Mono, Veiled)
 // and pure synthesizer soundscapes (Apex V8, Plaid, Dune Runner, Alpine, Starliner, Neon Drive).
 
 import { SYNTH_PRESETS } from '../data/scenes';
 
-// Math helpers matching Dribe
+// Math helpers
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 const lerp = (a, b, t) => a + (b - a) * t;
 const norm = (val, min, max) => clamp((val - min) / (max - min), 0, 1);
@@ -654,7 +654,7 @@ async function createProcarEngine(benchId, muffleAmount = 0) {
         }
       }
 
-      // Automatic gear shifting based on speed matching Dribe
+      // Automatic gear shifting based on vehicle speed
       const isManual = customRev !== null;
       if (isManual) {
         drivetrainSim.gear = 2;
