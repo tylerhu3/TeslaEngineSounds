@@ -278,7 +278,7 @@ class DrivetrainSim {
 // ProCar audio configuration profiles
 export const PROCAR_CONFIGS = {
   procar: {
-    engine: { limiter: 9000, soft_limiter: 9000, limiter_ms: 150, inertia: 1 },
+    engine: { limiter: 9000, soft_limiter: 9000, limiter_ms: 150, inertia: 1, idle: 800 },
     drivetrain: { shiftTime: 100, damping: 12 },
     lift: 0.6,
     sounds: [
@@ -287,7 +287,8 @@ export const PROCAR_CONFIGS = {
       { key: 'off_low', src: '/audio/engine/procar-off-low.wav', rpm: 3400, volume: 1.3 },
       { key: 'off_high', src: '/audio/engine/procar-off-high.wav', rpm: 8430, volume: 1.3 },
       { key: 'limiter', src: '/audio/engine/procar-limiter.wav', rpm: 8000, volume: 0.35 }
-    ]
+    ],
+    idle: { src: '/audio/autobahn/idle.wav', volume: 1.4, window: [1000, 2200] }
   },
   'bac-mono': {
     engine: { limiter: 9000, soft_limiter: 8950, limiter_ms: 0, inertia: 1 },
@@ -368,7 +369,7 @@ export const PROCAR_CONFIGS = {
     }
   },
   'procar-veiled': {
-    engine: { limiter: 9000, soft_limiter: 9000, limiter_ms: 150, inertia: 1 },
+    engine: { limiter: 9000, soft_limiter: 9000, limiter_ms: 150, inertia: 1, idle: 800 },
     drivetrain: { shiftTime: 100, damping: 12 },
     lift: 0.46,
     veilHz: 420,
@@ -378,7 +379,8 @@ export const PROCAR_CONFIGS = {
       { key: 'off_low', src: '/audio/engine/procar-off-low.wav', rpm: 3400, volume: 1.3 },
       { key: 'off_high', src: '/audio/engine/procar-off-high.wav', rpm: 8430, volume: 1.3 },
       { key: 'limiter', src: '/audio/engine/procar-limiter.wav', rpm: 8000, volume: 0.35 }
-    ]
+    ],
+    idle: { src: '/audio/autobahn/idle.wav', volume: 1.2, window: [1000, 2200] }
   }
 };
 
