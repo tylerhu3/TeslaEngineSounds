@@ -10,7 +10,12 @@ import LockedPreviewModal from './components/LockedPreviewModal';
 import { SCENES } from './data/scenes';
 import { VehiclePhysics } from './engine/physicsEngine';
 import { engineAudio } from './engine/audioEngine';
-import { enableBackgroundAudioKeepAlive, createBackgroundTicker } from './engine/backgroundAudio';
+import {
+  enableBackgroundAudioKeepAlive,
+  syncBackgroundKeepAlive,
+  updateMediaSession,
+  createBackgroundTicker
+} from './engine/backgroundAudio';
 
 export default function App() {
   // 1. Scene & Vehicle State
@@ -232,15 +237,20 @@ export default function App() {
         } else if (!isMuted) {
           engineAudio.setMuted(false);
         }
+      } else {
+        if (!document.hidden && !isMuted) {
+          engineAudio.setMuted(false);
+        }
+        syncBackgroundKeepAlive(engineAudio.isPlaying && !isMuted);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('blur', handleVisibility);
+    window.addEventListener('pageshow', handleVisibility);
     window.addEventListener('focus', handleVisibility);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('blur', handleVisibility);
+      window.removeEventListener('pageshow', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
     };
   }, [isBackgroundAudio, isMuted]);
@@ -292,6 +302,10 @@ export default function App() {
 
   // Scene Switch Handler
   const handleSelectScene = useCallback((scene) => {
+    if (scene.id === currentScene.id) {
+      setIsDockOpen(false);
+      return;
+    }
     setCurrentScene(scene);
     physicsRef.current.updateSpecs(scene.specs);
     engineAudio.setPreset(scene.voiceId);
@@ -310,9 +324,40 @@ export default function App() {
     }
 
     setIsDockOpen(false);
-  }, [rainActive]);
+  }, [currentScene.id, rainActive]);
 
-  // Audio Engine Lifecycle & Interaction Listener
+  // MediaSession Next / Previous Scene cycle
+  const handleNextScene = useCallback(() => {
+    const idx = SCENES.findIndex((s) => s.id === currentScene.id);
+    const nextIdx = (idx + 1) % SCENES.length;
+    handleSelectScene(SCENES[nextIdx]);
+  }, [currentScene.id, handleSelectScene]);
+
+  const handlePrevScene = useCallback(() => {
+    const idx = SCENES.findIndex((s) => s.id === currentScene.id);
+    const prevIdx = (idx - 1 + SCENES.length) % SCENES.length;
+    handleSelectScene(SCENES[prevIdx]);
+  }, [currentScene.id, handleSelectScene]);
+
+  // MediaSession Play / Pause handlers
+  const handleMediaPlay = useCallback(() => {
+    engineAudio.resume();
+    if (!engineAudio.isPlaying) {
+      engineAudio.start(currentScene.voiceId);
+    }
+    setIsMuted(false);
+    engineAudio.setMuted(false);
+    syncBackgroundKeepAlive(isBackgroundAudio);
+  }, [currentScene.voiceId, isBackgroundAudio]);
+
+  const handleMediaPause = useCallback(() => {
+    const next = !isMuted;
+    setIsMuted(next);
+    engineAudio.setMuted(next);
+    syncBackgroundKeepAlive(!next && isBackgroundAudio);
+  }, [isMuted, isBackgroundAudio]);
+
+  // Audio Engine Lifecycle & Interaction Listener (mobile-first touchstart support)
   useEffect(() => {
     engineAudio.setPreset(currentScene.voiceId);
     engineAudio.setMasterVolume(effectsVolume);
@@ -321,21 +366,52 @@ export default function App() {
       engineAudio.resume();
       enableBackgroundAudioKeepAlive();
       if (!engineAudio.isPlaying) {
-        engineAudio.start();
+        engineAudio.start(currentScene.voiceId);
       }
       if (currentScene.scene === 'rain' && rainActive) {
         engineAudio.startRainAmbience();
       }
+      syncBackgroundKeepAlive(isBackgroundAudio && !isMuted);
     };
 
     window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
     window.addEventListener('keydown', unlockAudio, { once: true });
 
     return () => {
       window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
       window.removeEventListener('keydown', unlockAudio);
     };
-  }, [currentScene.voiceId, effectsVolume]);
+  }, [currentScene.voiceId, effectsVolume, rainActive, isBackgroundAudio, isMuted]);
+
+  // MediaSession Presentation sync (matching dribe.app)
+  useEffect(() => {
+    updateMediaSession(currentScene, {
+      isRunning: engineAudio.isPlaying && !isMuted,
+      isBackgroundAudio,
+      isLofiPlaying,
+      onPlay: handleMediaPlay,
+      onPause: handleMediaPause,
+      onNext: handleNextScene,
+      onPrev: handlePrevScene
+    });
+
+    if (isBackgroundAudio && engineAudio.isPlaying && !isMuted) {
+      syncBackgroundKeepAlive(true);
+    } else if (!isBackgroundAudio || isMuted) {
+      syncBackgroundKeepAlive(false);
+    }
+  }, [
+    currentScene,
+    isBackgroundAudio,
+    isMuted,
+    isLofiPlaying,
+    handleMediaPlay,
+    handleMediaPause,
+    handleNextScene,
+    handlePrevScene
+  ]);
 
   // Random Thunder in Chill (Lo-fi) screen: plays randomly between 1 and 10 minutes
   useEffect(() => {
@@ -390,24 +466,46 @@ export default function App() {
     // Background Web Worker ticker: keeps physics and engine audio ticking when
     // requestAnimationFrame is paused by the browser (hidden tab, locked screen, in-car navigation)
     const bgTicker = createBackgroundTicker(() => {
-      if (document.hidden) {
-        tickFrame();
+      if (document.hidden && isBackgroundAudio) {
+        const now = performance.now();
+        const dt = Math.min(0.1, Math.max(0.001, (now - lastTime) / 1000));
+        lastTime = now;
+
+        const p = physicsRef.current;
+        if (!p) return;
+        const state = p.tick(dt);
+
+        if (!isPreviewOpenRef.current) {
+          engineAudio.update({
+            speedKmh: state.speedKmh,
+            acceleration: state.accelerationMs2,
+            throttle: state.throttle,
+            rpm: state.rpm,
+            isLimiterBouncing: state.isLimiterBouncing,
+            isShifting: state.isShifting,
+            redlineRpm: state.redlineRpm,
+            gear: state.gear
+          });
+        }
       }
     });
 
-    const handleVisibility = () => {
+    const handleVisibilitySync = () => {
       lastTime = performance.now();
       engineAudio.resume();
+      if (!document.hidden && physicsRef.current) {
+        setPhysicsState(physicsRef.current.getState());
+      }
     };
 
-    document.addEventListener('visibilitychange', handleVisibility);
+    document.addEventListener('visibilitychange', handleVisibilitySync);
 
     return () => {
       cancelAnimationFrame(animId);
       bgTicker.dispose();
-      document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
     };
-  }, []);
+  }, [isBackgroundAudio]);
 
   // Pack Unlock Handler
   const handleUnlockPack = useCallback((packId) => {

@@ -379,8 +379,7 @@ export const PROCAR_CONFIGS = {
       { key: 'off_low', src: '/audio/engine/procar-off-low.wav', rpm: 3400, volume: 1.3 },
       { key: 'off_high', src: '/audio/engine/procar-off-high.wav', rpm: 8430, volume: 1.3 },
       { key: 'limiter', src: '/audio/engine/procar-limiter.wav', rpm: 8000, volume: 0.35 }
-    ],
-    idle: { src: '/audio/autobahn/idle.wav', volume: 1.2, window: [1000, 2200] }
+    ]
   }
 };
 
@@ -600,7 +599,12 @@ async function createProcarEngine(benchId, muffleAmount = 0) {
     setMuffle: muffle.set,
     fadeIn: () => {
       currentTargetGain = 0;
-      masterGain.gain.value = 0;
+      try {
+        const now = ctx.currentTime;
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(0, now);
+        masterGain.gain.linearRampToValueAtTime(0.25, now + 0.08);
+      } catch {}
     },
     getTelemetry: () => ({
       rpm: Math.round(engineSim.rpm),
@@ -733,21 +737,90 @@ async function createProcarEngine(benchId, muffleAmount = 0) {
         });
       }
     },
+    fadeOutAndDispose: (fadeDurationMs = 40) => {
+      let isDisposed = false;
+      const doDispose = () => {
+        if (isDisposed) return;
+        isDisposed = true;
+        for (const node of Object.values(soundNodes)) {
+          try {
+            node.audio.stop(0);
+            node.audio.disconnect();
+            node.gain.disconnect();
+          } catch {}
+        }
+        for (const charNode of characterNodes) {
+          try {
+            charNode.audio.stop(0);
+            charNode.audio.disconnect();
+            charNode.gain.disconnect();
+          } catch {}
+        }
+        try {
+          if (activePop?.source) {
+            activePop.source.stop(0);
+            activePop.source.disconnect();
+          }
+        } catch {}
+        try {
+          engineBus.disconnect();
+          masterGain.disconnect();
+          compressor.disconnect();
+          ctx.close().catch(() => {});
+        } catch {}
+      };
+
+      try {
+        const now = ctx.currentTime;
+        const fadeSec = Math.max(0.005, fadeDurationMs / 1000);
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime(0, now + fadeSec);
+
+        engineBus.gain.cancelScheduledValues(now);
+        engineBus.gain.setValueAtTime(engineBus.gain.value, now);
+        engineBus.gain.linearRampToValueAtTime(0, now + fadeSec);
+
+        // Instantly mute idle sound loop so there is zero idle bleed
+        if (soundNodes.idle?.gain?.gain) {
+          soundNodes.idle.gain.gain.cancelScheduledValues(now);
+          soundNodes.idle.gain.gain.setValueAtTime(0, now);
+        }
+      } catch {}
+
+      if (fadeDurationMs <= 0) {
+        doDispose();
+      } else {
+        setTimeout(doDispose, fadeDurationMs + 20);
+      }
+    },
     dispose: () => {
+      let isDisposed = false;
       for (const node of Object.values(soundNodes)) {
         try {
-          node.audio.stop();
+          node.audio.stop(0);
           node.audio.disconnect();
+          node.gain.disconnect();
         } catch {}
       }
       for (const charNode of characterNodes) {
         try {
-          charNode.audio.stop();
+          charNode.audio.stop(0);
           charNode.audio.disconnect();
+          charNode.gain.disconnect();
         } catch {}
       }
       try {
-        ctx.close();
+        if (activePop?.source) {
+          activePop.source.stop(0);
+          activePop.source.disconnect();
+        }
+      } catch {}
+      try {
+        engineBus.disconnect();
+        masterGain.disconnect();
+        compressor.disconnect();
+        ctx.close().catch(() => {});
       } catch {}
     }
   };
@@ -1010,19 +1083,74 @@ function createSynthEngine(preset, muffleAmount = 0) {
       throttle: 0,
       isShifting: false
     }),
+    fadeIn: () => {
+      masterGainVal = 0;
+      try {
+        const now = ctx.currentTime;
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(0, now);
+        masterGain.gain.linearRampToValueAtTime(0.2, now + 0.08);
+      } catch {}
+    },
+    fadeOutAndDispose: (fadeDurationMs = 40) => {
+      let isDisposed = false;
+      const doDispose = () => {
+        if (isDisposed) return;
+        isDisposed = true;
+        oscillators.forEach((osc) => {
+          try {
+            osc.stop(0);
+            osc.disconnect();
+          } catch {}
+        });
+        try {
+          subOsc.stop(0);
+          subOsc.disconnect();
+          noiseSource.stop(0);
+          noiseSource.disconnect();
+          intakeSource.stop(0);
+          intakeSource.disconnect();
+          lopeOsc.stop(0);
+          lopeOsc.disconnect();
+          masterGain.disconnect();
+          ctx.close().catch(() => {});
+        } catch {}
+      };
+
+      try {
+        const now = ctx.currentTime;
+        const fadeSec = Math.max(0.005, fadeDurationMs / 1000);
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime(0, now + fadeSec);
+        mixBus.gain.cancelScheduledValues(now);
+        mixBus.gain.setValueAtTime(0, now);
+      } catch {}
+
+      if (fadeDurationMs <= 0) {
+        doDispose();
+      } else {
+        setTimeout(doDispose, fadeDurationMs + 20);
+      }
+    },
     dispose: () => {
       oscillators.forEach((osc) => {
         try {
-          osc.stop();
+          osc.stop(0);
           osc.disconnect();
         } catch {}
       });
       try {
-        subOsc.stop();
-        noiseSource.stop();
-        intakeSource.stop();
-        lopeOsc.stop();
-        ctx.close();
+        subOsc.stop(0);
+        subOsc.disconnect();
+        noiseSource.stop(0);
+        noiseSource.disconnect();
+        intakeSource.stop(0);
+        intakeSource.disconnect();
+        lopeOsc.stop(0);
+        lopeOsc.disconnect();
+        masterGain.disconnect();
+        ctx.close().catch(() => {});
       } catch {}
     }
   };
@@ -1219,6 +1347,8 @@ class EngineAudioController {
     this.isPlaying = false;
     this.isMuted = false;
     this.outputGain = 0.85;
+    this.transitionSeq = 0;
+    this.isLoading = false;
 
     // Rain ambience
     this.rainSynth = null;
@@ -1232,35 +1362,72 @@ class EngineAudioController {
   }
 
   async setPreset(voiceId) {
-    if (this.currentVoiceId === voiceId && this.activeEngine) return;
+    if (this.currentVoiceId === voiceId && (this.activeEngine || this.isLoading)) return;
     this.currentVoiceId = voiceId;
 
     if (this.isPlaying) {
-      await this.start();
+      await this.start(voiceId);
     }
   }
 
   async start(voiceId = this.currentVoiceId) {
     this.currentVoiceId = voiceId;
-    this.stopCurrentEngine();
+    const currentSeq = ++this.transitionSeq;
+    this.isLoading = true;
 
-    const procarKey = getProcarKey(voiceId);
-    if (procarKey) {
-      this.activeEngine = await createProcarEngine(procarKey, 0);
-    } else {
-      const synthPreset = SYNTH_PRESETS[voiceId] ?? SYNTH_PRESETS['apex-v8'];
-      this.activeEngine = createSynthEngine(synthPreset, 0);
+    // Instantly fade out and dispose old engine so idling sound NEVER bleeds over
+    if (this.activeEngine) {
+      const old = this.activeEngine;
+      this.activeEngine = null;
+      if (typeof old.fadeOutAndDispose === 'function') {
+        old.fadeOutAndDispose(40);
+      } else if (typeof old.dispose === 'function') {
+        old.dispose();
+      }
     }
 
+    const procarKey = getProcarKey(voiceId);
+    let newEngine = null;
+
+    if (procarKey) {
+      newEngine = await createProcarEngine(procarKey, 0);
+    } else {
+      const synthPreset = SYNTH_PRESETS[voiceId] ?? SYNTH_PRESETS['apex-v8'];
+      newEngine = createSynthEngine(synthPreset, 0);
+    }
+
+    // Sequence check: if another preset was chosen while newEngine was loading, discard it
+    if (this.transitionSeq !== currentSeq) {
+      if (newEngine) {
+        if (typeof newEngine.fadeOutAndDispose === 'function') {
+          newEngine.fadeOutAndDispose(0);
+        } else if (typeof newEngine.dispose === 'function') {
+          newEngine.dispose();
+        }
+      }
+      return;
+    }
+
+    this.activeEngine = newEngine;
+    this.isLoading = false;
     this.isPlaying = true;
+
+    if (this.activeEngine && typeof this.activeEngine.fadeIn === 'function') {
+      this.activeEngine.fadeIn();
+    }
   }
 
   stopCurrentEngine() {
+    this.transitionSeq++;
+    this.isLoading = false;
     if (this.activeEngine) {
-      try {
-        this.activeEngine.dispose();
-      } catch {}
+      const engine = this.activeEngine;
       this.activeEngine = null;
+      if (typeof engine.fadeOutAndDispose === 'function') {
+        engine.fadeOutAndDispose(40);
+      } else if (typeof engine.dispose === 'function') {
+        engine.dispose();
+      }
     }
   }
 
@@ -1310,7 +1477,13 @@ class EngineAudioController {
     if (this.activeEngine?.getTelemetry) {
       return this.activeEngine.getTelemetry();
     }
-    return null;
+    return {
+      rpm: 800,
+      gear: 1,
+      throttle: 0,
+      isShifting: false,
+      heat: 0
+    };
   }
 
   update({ rpm = 1000, speedKmh = 0, acceleration = 0, throttle = 0, isThrottleDown = false, isShifting = false, redlineRpm = 9000, gear = 1, customRev = null }) {
