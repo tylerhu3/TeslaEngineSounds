@@ -251,6 +251,27 @@ export const SCENES = [
       finalDrive: 3.69,
       topSpeedKmh: 305
     }
+  },
+  {
+    id: "hyperspace",
+    name: "Warp Speed",
+    tagline: "Sub-space warp drive engaging hyperspace tunnel as acceleration surges.",
+    voiceId: "warp-drive",
+    accent: "#38bdf8",
+    hasManual: false,
+    hasMusic: false,
+    packId: "summer-2026",
+    packName: "Launch Pack",
+    scene: "hyperspace",
+    image: "/scenes/hyperspace.webp",
+    specs: {
+      engine: "Sub-Light Ion Warp Drive (1,200 MW)",
+      idleRpm: 600,
+      redlineRpm: 18000,
+      gears: 1,
+      finalDrive: 1.0,
+      topSpeedKmh: 380
+    }
   }
 ];
 
@@ -264,8 +285,8 @@ export const PACKS = [
   {
     id: "summer-2026",
     name: "Launch Pack",
-    tagline: "Six immersive world soundscapes from Lo-fi rain to Plaid hyperspace.",
-    sceneIds: ["chill", "plaid", "dune-runner", "alpine", "starliner", "sakura"]
+    tagline: "Seven immersive world soundscapes from Plaid hyperspace to Star Wars Warp Speed.",
+    sceneIds: ["plaid", "chill", "dune-runner", "alpine", "starliner", "sakura", "hyperspace"]
   },
   {
     id: "basic",
@@ -634,5 +655,36 @@ export const SYNTH_PRESETS = {
     intakeFrequency: 1300,
     driveFloor: 0.07,
     driveCeiling: 0.22
+  },
+  "warp-drive": {
+    id: "warp-drive",
+    waveform: "triangle",
+    stack: 3,
+    detune: 16,
+    subLevel: 0.78,
+    directLevel: 0.24,
+    formants: [160, 480, 1250],
+    formantLevels: [1.0, 0.75, 0.28],
+    formantQ: 3.2,
+    lopeHz: 1.2,
+    lopeDepth: 0.12,
+    puffDepth: 0.04,
+    shimmerHz: 0.45,
+    shimmerCents: 18,
+    idleFrequency: 24,
+    redlineFrequency: 260,
+    filterFloor: 300,
+    filterCeiling: 2400,
+    filterResonance: 1.25,
+    spoolRatio: 3.8,
+    spoolLevel: 0.35,
+    spoolQ: 5.0,
+    noiseLevel: 0.12,
+    noiseFrequency: 850,
+    noiseBandwidth: 1.1,
+    intakeLevel: 0.14,
+    intakeFrequency: 1600,
+    driveFloor: 0.03,
+    driveCeiling: 0.18
   }
 };

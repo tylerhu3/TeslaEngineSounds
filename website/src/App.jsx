@@ -17,10 +17,24 @@ import {
   createBackgroundTicker
 } from './engine/backgroundAudio';
 
+const DEFAULT_SCENE = SCENES.find((s) => s.id === 'plaid') || SCENES[0];
+
 export default function App() {
-  // 1. Scene & Vehicle State
-  const [currentScene, setCurrentScene] = useState(SCENES[0]);
-  const physicsRef = useRef(new VehiclePhysics(SCENES[0].specs));
+  // 1. Scene & Vehicle State (Defaults to Plaid)
+  const [currentScene, setCurrentScene] = useState(() => {
+    try {
+      const savedId = localStorage.getItem('plaid-mode:currentSceneId');
+      if (savedId) {
+        const found = SCENES.find((s) => s.id === savedId);
+        if (found) return found;
+      }
+    } catch {}
+    return DEFAULT_SCENE;
+  });
+  const physicsRef = useRef(null);
+  if (!physicsRef.current) {
+    physicsRef.current = new VehiclePhysics(currentScene.specs);
+  }
 
   const [physicsState, setPhysicsState] = useState(() => physicsRef.current.getState());
 
@@ -79,10 +93,11 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  // 4. Units & Display Preferences
+  // 4. Units & Display Preferences (Defaults to MPH)
   const [unit, setUnit] = useState(() => {
     try {
-      return localStorage.getItem('plaid-mode:unit') || 'mph';
+      const saved = localStorage.getItem('plaid-mode:unit');
+      return saved === 'km/h' || saved === 'kmh' ? 'km/h' : 'mph';
     } catch {
       return 'mph';
     }
@@ -307,6 +322,9 @@ export default function App() {
       return;
     }
     setCurrentScene(scene);
+    try {
+      localStorage.setItem('plaid-mode:currentSceneId', scene.id);
+    } catch {}
     physicsRef.current.updateSpecs(scene.specs);
     engineAudio.setPreset(scene.voiceId);
 
@@ -572,7 +590,7 @@ export default function App() {
 
   // Units
   const handleToggleUnit = useCallback(() => {
-    setUnit((prev) => (prev === 'km/h' ? 'mph' : 'km/h'));
+    setUnit((prev) => (prev === 'mph' ? 'km/h' : 'mph'));
   }, []);
 
   // GPS Mode

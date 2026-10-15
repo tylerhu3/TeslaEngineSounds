@@ -276,7 +276,7 @@ html, body {
 }
 
 /* Individual Scene Canvas Layer Selectors */
-.plaid, .road, .desert, .snow, .space, .japan, .route66, .italia, .miami, .autobahn, .lane, .rain, .warp {
+.plaid, .road, .desert, .snow, .space, .japan, .route66, .italia, .miami, .autobahn, .lane, .rain, .warp, .hyperspace {
   width: 100%;
   height: 100%;
   display: block;

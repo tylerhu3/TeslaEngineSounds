@@ -8,6 +8,7 @@ import { MotionRainController } from '../engine/rainPhysicsEngine';
 
 const NIGHT_SCENES = [
   'warp',
+  'hyperspace',
   'road',
   'plaid',
   'space',
@@ -22,6 +23,7 @@ const NIGHT_SCENES = [
 
 const FONT_MAP = {
   warp: 'sceneStage--isFontWarp',
+  hyperspace: 'sceneStage--isFontWarp',
   rain: 'sceneStage--isFontRain',
   road: 'sceneStage--isFontRoad',
   desert: 'sceneStage--isFontDesert',

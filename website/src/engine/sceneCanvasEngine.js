@@ -347,6 +347,218 @@ export function createLane(canvasRef, getAccent = () => '#2f7bff') {
   };
 }
 
+export function createWarpSpeedController(canvasRef, getAccent = () => '#38bdf8') {
+  const NUM_STARS = 650;
+  const BASE_SPEED = 2.0;
+  const MAX_Z = 1200;
+
+  const dim = { width: 0, height: 0, ratio: 1 };
+  let needsClear = true;
+
+  // Cached star colors to ensure zero string allocations in the hot render loop
+  const STAR_COLORS = [
+    '#d6eeff', // 0: electric blue-white
+    '#ffffff', // 1: photon pure white
+    '#70d6ff', // 2: warp cyan
+    '#9eb5ff', // 3: sub-space violet
+    '#54a0ff'  // 4: deep hyperdrive blue
+  ];
+
+  // Motion state vector (pre-allocated, mutated in-place)
+  const motion = {
+    currentSpeedUnits: BASE_SPEED,
+    targetSpeedUnits: BASE_SPEED,
+    warpFactor: 0,
+    targetWarpFactor: 0,
+    shockwaveRadius: 20,
+    shockwaveAlpha: 0,
+    corePulse: 0
+  };
+
+  // Pre-allocate fixed pool of stars (zero allocations inside draw())
+  const stars = new Array(NUM_STARS);
+  for (let i = 0; i < NUM_STARS; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 40 + Math.random() * 960;
+    stars[i] = {
+      x: Math.cos(angle) * dist,
+      y: Math.sin(angle) * dist,
+      z: Math.random() * MAX_Z,
+      prevZ: 0,
+      size: 0.8 + Math.random() * 1.8,
+      speedVariance: 0.85 + Math.random() * 0.3,
+      colorIdx: Math.floor(Math.random() * STAR_COLORS.length)
+    };
+    stars[i].prevZ = stars[i].z;
+  }
+
+  const resize = () => {
+    const canvas = canvasRef.value;
+    if (!canvas) return;
+    const w = canvas.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1200);
+    const h = canvas.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 800);
+    const r = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+    const rw = Math.max(1, Math.floor(w * r));
+    const rh = Math.max(1, Math.floor(h * r));
+
+    dim.width = w;
+    dim.height = h;
+    dim.ratio = r;
+
+    if (canvas.width !== rw || canvas.height !== rh) {
+      canvas.width = rw;
+      canvas.height = rh;
+      needsClear = true;
+    }
+  };
+
+  const draw = (dt) => {
+    const canvas = canvasRef.value;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+
+    const { width, height, ratio } = dim;
+    if (width <= 0 || height <= 0) return;
+
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    // Initial clear when canvas initializes or resizes
+    if (needsClear) {
+      ctx.fillStyle = '#030712';
+      ctx.fillRect(0, 0, width, height);
+      needsClear = false;
+    }
+
+    const speedKmh = canvasEngineState.sceneSpeedKmh;
+    const accel = canvasEngineState.sceneAccelerationMs2;
+    const shiftProgress = canvasEngineState.shiftProgress;
+    const shiftWay = canvasEngineState.shiftWay;
+
+    // Map speed to 3D movement speed (base + scalar)
+    motion.targetSpeedUnits = BASE_SPEED + speedKmh * 0.22;
+    motion.currentSpeedUnits += (motion.targetSpeedUnits - motion.currentSpeedUnits) * Math.min(1, dt * 5.0);
+
+    // Acceleration-driven warping:
+    // When accel > 0 (accelerating): targetWarpFactor climbs up to 1.0+
+    // When constant cruising speed (accel ~ 0) or coasting: targetWarpFactor smoothly decays to 0
+    const rawWarp = Math.max(0, accel * 0.28);
+    motion.targetWarpFactor = Math.min(rawWarp, 3.0);
+    motion.warpFactor += (motion.targetWarpFactor - motion.warpFactor) * Math.min(1, dt * 6.0);
+
+    // Dynamic vanishing point with automotive shift pitch recoil
+    const pitchOffset = (1 - Math.cos(Math.PI * 2 * (1 - Math.min(Math.max(shiftProgress, 0), 1)))) * 0.5 * (shiftWay < 0 ? -1 : 1) * 0.012;
+    const cx = width * 0.5;
+    const cy = height * (0.5 + pitchOffset);
+
+    // Semi-transparent cosmic background creates authentic streak persistence / motion blur
+    const bgAlpha = Math.max(0.24, 0.38 - motion.warpFactor * 0.04);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(3, 7, 18, ${bgAlpha})`;
+    ctx.fillRect(0, 0, width, height);
+
+    // Warp core vanishing glow during acceleration
+    if (motion.warpFactor > 0.05) {
+      motion.corePulse = (motion.corePulse + dt * 4.0) % (Math.PI * 2);
+      const pulseSize = (width * 0.18) * (1 + Math.sin(motion.corePulse) * 0.15) * motion.warpFactor;
+      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(10, pulseSize));
+      coreGrad.addColorStop(0, 'rgba(112, 214, 255, 0.45)');
+      coreGrad.addColorStop(0.35, 'rgba(56, 189, 248, 0.18)');
+      coreGrad.addColorStop(0.7, 'rgba(28, 105, 212, 0.06)');
+      coreGrad.addColorStop(1, 'rgba(3, 7, 18, 0)');
+
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = coreGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, pulseSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Expanding warp shockwave ring under heavy kickdown acceleration
+      if (accel > 2.0) {
+        motion.shockwaveRadius += (width * 0.75 - motion.shockwaveRadius) * Math.min(1, dt * 4.0);
+        motion.shockwaveAlpha = Math.max(0, 0.35 * (1 - motion.shockwaveRadius / (width * 0.75)));
+        if (motion.shockwaveAlpha > 0.01) {
+          ctx.strokeStyle = '#70d6ff';
+          ctx.lineWidth = 1.8;
+          ctx.globalAlpha = motion.shockwaveAlpha;
+          ctx.beginPath();
+          ctx.arc(cx, cy, motion.shockwaveRadius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else {
+        motion.shockwaveRadius = 20;
+      }
+    }
+
+    // Streak multiplier:
+    // Constant speed (cruising): 1.0 (subtle trails proportional to speed)
+    // Acceleration: stretches dramatically backward towards vanishing point!
+    const streakMultiplier = 1.0 + motion.warpFactor * 6.5;
+    const effectiveSpeed = motion.currentSpeedUnits * (1 + motion.warpFactor * 0.8);
+    const speedDt = effectiveSpeed * dt * 60; // 60fps normalized frame step
+
+    ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = 'lighter';
+
+    const spreadW = width * 1.8;
+    const spreadH = height * 1.8;
+
+    for (let i = 0; i < NUM_STARS; i++) {
+      const star = stars[i];
+
+      star.prevZ = star.z;
+      star.z -= speedDt * star.speedVariance;
+
+      // Recycle star when it passes camera
+      if (star.z <= 1) {
+        star.z += MAX_Z;
+        star.prevZ = star.z;
+        star.x = (Math.random() - 0.5) * spreadW;
+        star.y = (Math.random() - 0.5) * spreadH;
+        star.colorIdx = Math.floor(Math.random() * STAR_COLORS.length);
+        star.speedVariance = 0.85 + Math.random() * 0.3;
+      }
+
+      // 3D -> 2D Perspective Projection
+      const k = 320 / star.z;
+      const px = star.x * k + cx;
+      const py = star.y * k + cy;
+
+      // Previous Z position projection (extended backwards by acceleration warping)
+      const tailZ = Math.min(MAX_Z, star.z + speedDt * streakMultiplier * 2.8);
+      const prevK = 320 / tailZ;
+      const ppx = star.x * prevK + cx;
+      const ppy = star.y * prevK + cy;
+
+      // Skip drawing if outside screen boundaries
+      if (px < -40 || px > width + 40 || py < -40 || py > height + 40) {
+        continue;
+      }
+
+      // Depth factor: closer stars (lower Z) are brighter and thicker
+      const depthFactor = 1 - star.z / MAX_Z;
+      const alpha = Math.min(1, Math.max(0.12, depthFactor * (1.1 + motion.warpFactor * 0.4)));
+      const lineWidth = Math.max(0.8, star.size * (0.6 + depthFactor * 2.8 + motion.warpFactor * 1.2));
+
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = STAR_COLORS[star.colorIdx];
+      ctx.lineWidth = lineWidth;
+
+      ctx.beginPath();
+      ctx.moveTo(ppx, ppy);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  };
+
+  return {
+    resize,
+    draw
+  };
+}
+
 export function createSceneController(sceneType, canvasEl, getAccent = () => '#f7b733') {
   const ref = { value: canvasEl };
   switch (sceneType) {
@@ -357,6 +569,9 @@ export function createSceneController(sceneType, canvasEl, getAccent = () => '#f
     case 'neon-drive':
       return In(ref);
     case 'warp':
+    case 'warp-speed':
+    case 'hyperspace':
+      return createWarpSpeedController(ref, getAccent);
     case 'apex-v8':
       return em(ref, getAccent);
     case 'plaid':
