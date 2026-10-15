@@ -877,6 +877,24 @@ function createSynthEngine(preset, muffleAmount = 0) {
   // Direct level gain
   const directGain = ctx.createGain();
 
+  // Dedicated high-frequency Inverter Carrier (for isElectric presets like Plaid)
+  const inverterOsc = preset.isElectric ? ctx.createOscillator() : null;
+  const inverterGain = preset.isElectric ? ctx.createGain() : null;
+  const inverterFilter = preset.isElectric ? ctx.createBiquadFilter() : null;
+
+  if (inverterOsc && inverterGain && inverterFilter) {
+    inverterOsc.type = 'sine';
+    inverterOsc.frequency.value = (preset.idleFrequency ?? 68) * 8;
+    inverterFilter.type = 'highpass';
+    inverterFilter.frequency.value = 1000;
+    inverterGain.gain.value = 0;
+
+    inverterOsc.connect(inverterFilter);
+    inverterFilter.connect(inverterGain);
+    inverterGain.connect(synthBus);
+    inverterOsc.start();
+  }
+
   // Setup initial node parameters
   oscGain.gain.value = 1 / Math.max(1, preset.stack ?? 3);
   mixBus.gain.value = 0.62;
@@ -1035,10 +1053,19 @@ function createSynthEngine(preset, muffleAmount = 0) {
       });
       subOsc.frequency.setTargetAtTime(targetPitch / 2, now, 0.004);
 
-      // Formants modulation
+      // High Inverter Carrier Whine (for electric drivetrains)
+      if (inverterOsc && inverterGain) {
+        const invFreq = lerp(1200, 5200, rev);
+        inverterOsc.frequency.setTargetAtTime(invFreq, now, 0.006);
+        const invVol = (preset.isElectric ? 0.42 : 0.2) * (0.05 + rev * 0.95) * (0.85 + accelNorm * 0.25);
+        inverterGain.gain.setTargetAtTime(invVol, now, 0.02);
+      }
+
+      // Formants modulation - stable at constant speed
       formantNodes.forEach((fNode, idx) => {
         const baseFreq = preset.formants?.[idx] ?? 200;
-        fNode.frequency.setTargetAtTime(baseFreq * (1 + dynamicEffort * 0.22), now, 0.03);
+        const formantMod = preset.isElectric ? rev * 0.35 + accelNorm * 0.1 : dynamicEffort * 0.22;
+        fNode.frequency.setTargetAtTime(baseFreq * (1 + formantMod), now, 0.03);
       });
 
       // Lope LFO depth
@@ -1051,12 +1078,14 @@ function createSynthEngine(preset, muffleAmount = 0) {
       spoolFilter.frequency.setTargetAtTime(targetPitch * (preset.spoolRatio ?? 2), now, 0.004);
       spoolGain.gain.setTargetAtTime((preset.spoolLevel ?? 0.2) * lerp(0.06, 1, rev), now, 0.02);
 
-      // Filter cutoff
-      const filterCutoff = lerp(
-        preset.filterFloor ?? 400,
-        (preset.filterCeiling ?? 2500) * 1.05,
-        clamp(rev * 0.5 + accelNorm * 0.86, 0, 1)
-      );
+      // Filter cutoff - wide open for inverter whine, stable at constant speed
+      const filterCutoff = preset.isElectric
+        ? lerp(preset.filterFloor ?? 650, preset.filterCeiling ?? 4800, clamp(rev * 0.85 + accelNorm * 0.2, 0, 1))
+        : lerp(
+            preset.filterFloor ?? 400,
+            (preset.filterCeiling ?? 2500) * 1.05,
+            clamp(rev * 0.5 + accelNorm * 0.86, 0, 1)
+          );
       mainFilter.frequency.setTargetAtTime(filterCutoff, now, 0.02);
 
       // Noise & intake
@@ -1064,10 +1093,12 @@ function createSynthEngine(preset, muffleAmount = 0) {
       noiseGain.gain.setTargetAtTime(noiseAmp * 0.5, now, 0.02);
       intakeGain.gain.setTargetAtTime((preset.intakeLevel ?? 0.2) * 0.5 * (0.05 + dynamicEffort * 0.95), now, 0.02);
 
-      // Master output volume
+      // Master output volume - constant and steady at cruising speed
       const speedNorm = clamp(speedKmh / 115, 0, 1);
-      const activity = clamp(Math.max(speedNorm, dynamicEffort, isThrottle ? 0.8 : 0), 0, 1);
-      const targetVolume = outputGain * lerp(0.18, 1.55, activity);
+      const activity = preset.isElectric
+        ? clamp(Math.max(speedNorm * 0.88, rev * 0.85) + (isThrottle ? 0.2 : 0) + accelNorm * 0.15, 0.2, 1)
+        : clamp(Math.max(speedNorm, dynamicEffort, isThrottle ? 0.8 : 0), 0, 1);
+      const targetVolume = outputGain * (preset.isElectric ? lerp(0.25, 1.35, activity) : lerp(0.18, 1.55, activity));
       const smooth = targetVolume > masterGainVal ? 0.012 : 0.09;
       masterGainVal = targetVolume;
       masterGain.gain.setTargetAtTime(targetVolume, now, smooth);
@@ -1104,6 +1135,12 @@ function createSynthEngine(preset, muffleAmount = 0) {
           } catch {}
         });
         try {
+          if (inverterOsc) {
+            inverterOsc.stop(0);
+            inverterOsc.disconnect();
+            inverterFilter?.disconnect();
+            inverterGain?.disconnect();
+          }
           subOsc.stop(0);
           subOsc.disconnect();
           noiseSource.stop(0);
@@ -1503,7 +1540,9 @@ class EngineAudioController {
       revArg = throttle > 0 ? throttle : 0.8;
     } else if (revArg === null && !getProcarKey(this.currentVoiceId)) {
       // For synth engines: pass normalized rev ratio so synth pitch accurately tracks RPM in every gear
-      revArg = Math.max(0, Math.min(1, (rpm - 800) / Math.max(1, redlineRpm - 800)));
+      const activePreset = SYNTH_PRESETS[this.currentVoiceId];
+      const baseIdle = activePreset?.isElectric ? 500 : 800;
+      revArg = Math.max(0, Math.min(1, (rpm - baseIdle) / Math.max(1, redlineRpm - baseIdle)));
     }
 
     this.activeEngine.update(
