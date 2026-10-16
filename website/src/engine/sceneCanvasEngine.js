@@ -349,7 +349,6 @@ export function createLane(canvasRef, getAccent = () => '#2f7bff') {
 
 export function createWarpSpeedController(canvasRef, getAccent = () => '#38bdf8') {
   const NUM_STARS = 650;
-  const BASE_SPEED = 2.0;
   const MAX_Z = 1200;
 
   const dim = { width: 0, height: 0, ratio: 1 };
@@ -364,10 +363,10 @@ export function createWarpSpeedController(canvasRef, getAccent = () => '#38bdf8'
     '#54a0ff'  // 4: deep hyperdrive blue
   ];
 
-  // Motion state vector (pre-allocated, mutated in-place)
+  // Motion state vector (pre-allocated, mutated in-place; 0 speed at 0 mph)
   const motion = {
-    currentSpeedUnits: BASE_SPEED,
-    targetSpeedUnits: BASE_SPEED,
+    currentSpeedUnits: 0,
+    targetSpeedUnits: 0,
     warpFactor: 0,
     targetWarpFactor: 0,
     shockwaveRadius: 20,
@@ -434,14 +433,25 @@ export function createWarpSpeedController(canvasRef, getAccent = () => '#38bdf8'
     const shiftProgress = canvasEngineState.shiftProgress;
     const shiftWay = canvasEngineState.shiftWay;
 
-    // Map speed to 3D movement speed (base + scalar)
-    motion.targetSpeedUnits = BASE_SPEED + speedKmh * 0.22;
-    motion.currentSpeedUnits += (motion.targetSpeedUnits - motion.currentSpeedUnits) * Math.min(1, dt * 5.0);
+    // Zero star movement when stationary (0 mph / 0 km/h)
+    if (speedKmh <= 0.5) {
+      motion.targetSpeedUnits = 0;
+      if (motion.currentSpeedUnits < 0.02) {
+        motion.currentSpeedUnits = 0;
+      } else {
+        motion.currentSpeedUnits += (0 - motion.currentSpeedUnits) * Math.min(1, dt * 6.0);
+      }
+    } else {
+      motion.targetSpeedUnits = speedKmh * 0.25;
+      motion.currentSpeedUnits += (motion.targetSpeedUnits - motion.currentSpeedUnits) * Math.min(1, dt * 5.0);
+    }
+
+    const isMoving = motion.currentSpeedUnits > 0.01;
 
     // Acceleration-driven warping:
     // When accel > 0 (accelerating): targetWarpFactor climbs up to 1.0+
     // When constant cruising speed (accel ~ 0) or coasting: targetWarpFactor smoothly decays to 0
-    const rawWarp = Math.max(0, accel * 0.28);
+    const rawWarp = isMoving ? Math.max(0, accel * 0.28) : 0;
     motion.targetWarpFactor = Math.min(rawWarp, 3.0);
     motion.warpFactor += (motion.targetWarpFactor - motion.warpFactor) * Math.min(1, dt * 6.0);
 
@@ -450,11 +460,18 @@ export function createWarpSpeedController(canvasRef, getAccent = () => '#38bdf8'
     const cx = width * 0.5;
     const cy = height * (0.5 + pitchOffset);
 
-    // Semi-transparent cosmic background creates authentic streak persistence / motion blur
-    const bgAlpha = Math.max(0.24, 0.38 - motion.warpFactor * 0.04);
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = `rgba(3, 7, 18, ${bgAlpha})`;
-    ctx.fillRect(0, 0, width, height);
+    // Clear background: full solid clear when stationary to remove lingering trails;
+    // semi-transparent background when moving creates authentic streak persistence / motion blur
+    if (!isMoving) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#030712';
+      ctx.fillRect(0, 0, width, height);
+    } else {
+      const bgAlpha = Math.max(0.24, 0.38 - motion.warpFactor * 0.04);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = `rgba(3, 7, 18, ${bgAlpha})`;
+      ctx.fillRect(0, 0, width, height);
+    }
 
     // Warp core vanishing glow during acceleration
     if (motion.warpFactor > 0.05) {
@@ -494,7 +511,7 @@ export function createWarpSpeedController(canvasRef, getAccent = () => '#38bdf8'
     // Acceleration: stretches dramatically backward towards vanishing point!
     const streakMultiplier = 1.0 + motion.warpFactor * 6.5;
     const effectiveSpeed = motion.currentSpeedUnits * (1 + motion.warpFactor * 0.8);
-    const speedDt = effectiveSpeed * dt * 60; // 60fps normalized frame step
+    const speedDt = isMoving ? effectiveSpeed * dt * 60 : 0; // 60fps normalized frame step
 
     ctx.lineCap = 'round';
     ctx.globalCompositeOperation = 'lighter';
@@ -505,29 +522,25 @@ export function createWarpSpeedController(canvasRef, getAccent = () => '#38bdf8'
     for (let i = 0; i < NUM_STARS; i++) {
       const star = stars[i];
 
-      star.prevZ = star.z;
-      star.z -= speedDt * star.speedVariance;
-
-      // Recycle star when it passes camera
-      if (star.z <= 1) {
-        star.z += MAX_Z;
+      if (isMoving) {
         star.prevZ = star.z;
-        star.x = (Math.random() - 0.5) * spreadW;
-        star.y = (Math.random() - 0.5) * spreadH;
-        star.colorIdx = Math.floor(Math.random() * STAR_COLORS.length);
-        star.speedVariance = 0.85 + Math.random() * 0.3;
+        star.z -= speedDt * star.speedVariance;
+
+        // Recycle star when it passes camera
+        if (star.z <= 1) {
+          star.z += MAX_Z;
+          star.prevZ = star.z;
+          star.x = (Math.random() - 0.5) * spreadW;
+          star.y = (Math.random() - 0.5) * spreadH;
+          star.colorIdx = Math.floor(Math.random() * STAR_COLORS.length);
+          star.speedVariance = 0.85 + Math.random() * 0.3;
+        }
       }
 
       // 3D -> 2D Perspective Projection
       const k = 320 / star.z;
       const px = star.x * k + cx;
       const py = star.y * k + cy;
-
-      // Previous Z position projection (extended backwards by acceleration warping)
-      const tailZ = Math.min(MAX_Z, star.z + speedDt * streakMultiplier * 2.8);
-      const prevK = 320 / tailZ;
-      const ppx = star.x * prevK + cx;
-      const ppy = star.y * prevK + cy;
 
       // Skip drawing if outside screen boundaries
       if (px < -40 || px > width + 40 || py < -40 || py > height + 40) {
@@ -537,16 +550,32 @@ export function createWarpSpeedController(canvasRef, getAccent = () => '#38bdf8'
       // Depth factor: closer stars (lower Z) are brighter and thicker
       const depthFactor = 1 - star.z / MAX_Z;
       const alpha = Math.min(1, Math.max(0.12, depthFactor * (1.1 + motion.warpFactor * 0.4)));
-      const lineWidth = Math.max(0.8, star.size * (0.6 + depthFactor * 2.8 + motion.warpFactor * 1.2));
 
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = STAR_COLORS[star.colorIdx];
-      ctx.lineWidth = lineWidth;
 
-      ctx.beginPath();
-      ctx.moveTo(ppx, ppy);
-      ctx.lineTo(px, py);
-      ctx.stroke();
+      if (isMoving) {
+        // Previous Z position projection (extended backwards by acceleration warping)
+        const tailZ = Math.min(MAX_Z, star.z + speedDt * streakMultiplier * 2.8);
+        const prevK = 320 / tailZ;
+        const ppx = star.x * prevK + cx;
+        const ppy = star.y * prevK + cy;
+
+        const lineWidth = Math.max(0.8, star.size * (0.6 + depthFactor * 2.8 + motion.warpFactor * 1.2));
+        ctx.strokeStyle = STAR_COLORS[star.colorIdx];
+        ctx.lineWidth = lineWidth;
+
+        ctx.beginPath();
+        ctx.moveTo(ppx, ppy);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+      } else {
+        // Stationary stars: draw circular star points (crisp points of light in deep space)
+        const starRadius = Math.max(0.6, star.size * (0.4 + depthFactor * 1.0));
+        ctx.fillStyle = STAR_COLORS[star.colorIdx];
+        ctx.beginPath();
+        ctx.arc(px, py, starRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     ctx.globalAlpha = 1;
